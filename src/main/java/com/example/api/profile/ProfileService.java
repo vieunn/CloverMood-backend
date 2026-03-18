@@ -153,32 +153,44 @@ public class ProfileService {
         }
 
         try {
-            // First, verify current password by trying to login
-            boolean isPasswordCorrect = verifyPassword(request.getEmail(), request.getCurrentPassword());
-
-            if (!isPasswordCorrect) {
+            // Step 1: Verify current password using Supabase Auth (single source of truth)
+            String accessToken = verifyPasswordWithSupabaseAuth(request.getEmail(), request.getCurrentPassword());
+            
+            if (accessToken == null) {
                 res.put("success", false);
                 res.put("message", "Current password is incorrect");
                 return res;
             }
 
-            // Hash new password
-            String hashedPassword = passwordEncoder.encode(request.getNewPassword());
+            // Step 2: Update password in Supabase Auth using the access token
+            boolean passwordUpdated = updatePasswordInSupabaseAuth(accessToken, request.getNewPassword());
+            
+            if (!passwordUpdated) {
+                res.put("success", false);
+                res.put("message", "Failed to update password in authentication system");
+                return res;
+            }
 
-            // Update password in database
-            String url = supabaseUrl + "/rest/v1/profiles?email=eq." + request.getEmail();
+            // Step 3: Also update profiles.password for data consistency (secondary/optional)
+            try {
+                String hashedPassword = passwordEncoder.encode(request.getNewPassword());
+                String profileUrl = supabaseUrl + "/rest/v1/profiles?email=eq." + request.getEmail();
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("apikey", supabaseKey);
-            headers.set("Authorization", "Bearer " + supabaseKey);
-            headers.set("Prefer", "return=minimal");
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                headers.set("apikey", supabaseKey);
+                headers.set("Authorization", "Bearer " + supabaseKey);
+                headers.set("Prefer", "return=minimal");
 
-            Map<String, Object> body = new HashMap<>();
-            body.put("password", hashedPassword);
+                Map<String, Object> body = new HashMap<>();
+                body.put("password", hashedPassword);
 
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-            restTemplate.exchange(url, HttpMethod.PATCH, entity, String.class);
+                HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+                restTemplate.exchange(profileUrl, HttpMethod.PATCH, entity, String.class);
+            } catch (Exception ex) {
+                // Log but don't fail - Supabase Auth update succeeded which is the important part
+                System.out.println("ProfileService: Could not update local password copy: " + ex.getMessage());
+            }
 
             res.put("success", true);
             res.put("message", "Password changed successfully");
@@ -186,7 +198,7 @@ public class ProfileService {
 
         } catch (HttpStatusCodeException ex) {
             res.put("success", false);
-            res.put("message", "Database error");
+            res.put("message", "Authentication error");
             res.put("status", ex.getStatusCode().value());
             return res;
 
@@ -271,28 +283,62 @@ public class ProfileService {
         }
     }
 
-    // Helper: Verify password by checking against stored hash
-    private boolean verifyPassword(String email, String password) {
+    // Helper: Verify password by authenticating against Supabase Auth (single source of truth)
+    // Returns access token if password is correct, null if incorrect
+    private String verifyPasswordWithSupabaseAuth(String email, String password) {
         try {
-            String url = supabaseUrl + "/rest/v1/profiles?email=eq." + email + "&select=password";
+            String url = supabaseUrl + "/auth/v1/token?grant_type=password";
+
             HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("apikey", supabaseKey);
-            headers.set("Authorization", "Bearer " + supabaseKey);
 
-            HttpEntity<String> entity = new HttpEntity<>(headers);
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            Map<String, Object> body = new HashMap<>();
+            body.put("email", email);
+            body.put("password", password);
 
-            String body = response.getBody();
-            
-            if (body == null || body.equals("[]")) {
-                return false; // User not found
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+
+            // Login successful - extract access_token from response
+            String responseBody = response.getBody();
+            if (responseBody != null) {
+                String accessToken = extractJsonField(responseBody, "access_token");
+                return accessToken;
             }
+            return null;
 
-            // Extract hashed password from JSON and compare
-            String hashedPassword = extractPasswordFromJson(body);
-            return passwordEncoder.matches(password, hashedPassword);
+        } catch (HttpStatusCodeException ex) {
+            // 400 or 401 means invalid credentials - return null
+            if (ex.getStatusCode().value() == 400 || ex.getStatusCode().value() == 401) {
+                return null;
+            }
+            throw ex;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    // Helper: Update password in Supabase Auth using access token
+    private boolean updatePasswordInSupabaseAuth(String accessToken, String newPassword) {
+        try {
+            String url = supabaseUrl + "/auth/v1/user";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("apikey", supabaseKey);
+            headers.set("Authorization", "Bearer " + accessToken);
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("password", newPassword);
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, entity, String.class);
+
+            return response.getStatusCode().is2xxSuccessful();
 
         } catch (Exception ex) {
+            System.out.println("ProfileService: Error updating password in Supabase Auth: " + ex.getMessage());
             return false;
         }
     }
@@ -308,18 +354,6 @@ public class ProfileService {
         boolean hasPhoto = profileImage != null && !profileImage.isEmpty() && !profileImage.equals("null");
         
         return new ProfileResponse(email, fullName, gender, hasPhoto);
-    }
-
-    private String extractPasswordFromJson(String jsonBody) {
-        // Extract "password" field from JSON
-        int startIndex = jsonBody.indexOf("\"password\":");
-        if (startIndex == -1) return null;
-        
-        startIndex = jsonBody.indexOf("\"", startIndex + 11);
-        int endIndex = jsonBody.indexOf("\"", startIndex + 1);
-        
-        if (startIndex == -1 || endIndex == -1) return null;
-        return jsonBody.substring(startIndex + 1, endIndex);
     }
 
     private String extractJsonField(String json, String field) {
