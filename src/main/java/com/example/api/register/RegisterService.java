@@ -1,18 +1,23 @@
 package com.example.api.register;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @Service
 public class RegisterService {
 
     private final RestTemplate restTemplate;
+    private final BCryptPasswordEncoder passwordEncoder;
 
     @Value("${supabase.url}")
     private String supabaseUrl;
@@ -20,8 +25,9 @@ public class RegisterService {
     @Value("${supabase.key}")
     private String supabaseKey;
 
-    public RegisterService(RestTemplate restTemplate) {
+    public RegisterService(RestTemplate restTemplate, BCryptPasswordEncoder passwordEncoder) {
         this.restTemplate = restTemplate;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public ResponseEntity<Map<String, Object>> register(RegisterRequest request) {
@@ -49,6 +55,9 @@ public class RegisterService {
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
 
+            // Create profile entry for the new user
+            createEmptyProfile(request.getEmail(), request.getPassword());
+
             res.put("success", true);
             res.put("message", "User registered via Supabase");
             res.put("data", response.getBody());
@@ -67,6 +76,31 @@ public class RegisterService {
             res.put("message", "Server error");
             res.put("error", ex.getMessage());
             return ResponseEntity.status(500).body(res);
+        }
+    }
+
+    private void createEmptyProfile(String email, String password) {
+        try {
+            String profileUrl = supabaseUrl + "/rest/v1/profiles";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("apikey", supabaseKey);
+            headers.set("Authorization", "Bearer " + supabaseKey);
+
+            Map<String, Object> profileBody = new HashMap<>();
+            profileBody.put("email", email);
+            profileBody.put("full_name", "");
+            profileBody.put("gender", "");
+            profileBody.put("password", passwordEncoder.encode(password));
+            profileBody.put("profile_image", null);
+
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(profileBody, headers);
+            restTemplate.postForEntity(profileUrl, entity, String.class);
+
+        } catch (Exception ex) {
+            // Silently fail - profile creation is not critical
+            System.out.println("Warning: Could not create profile entry: " + ex.getMessage());
         }
     }
 }
