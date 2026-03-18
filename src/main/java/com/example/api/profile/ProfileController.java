@@ -37,43 +37,33 @@ public class ProfileController {
         return profileService.changePassword(request);
     }
 
+    @GetMapping("/photo")
+    public Map<String, Object> getProfilePhoto(@RequestParam String email) {
+        return profileService.getProfilePhoto(email);
+    }
+
     @PostMapping("/photo")
     public Map<String, Object> uploadProfilePhoto(
             @RequestParam String email,
-            @RequestParam(value = "file", required = false) MultipartFile file,
-            @RequestBody(required = false) Map<String, String> jsonBody) {
+            @RequestParam(value = "file", required = false) MultipartFile file) {
         
         Map<String, Object> res = new java.util.HashMap<>();
         
         try {
-            byte[] fileBytes = null;
-            String actualFileName = "photo.png";
-            
-            if (file != null && !file.isEmpty()) {
-                // Multipart file upload
-                fileBytes = file.getBytes();
-                actualFileName = file.getOriginalFilename();
-            } else if (jsonBody != null && jsonBody.containsKey("base64")) {
-                // Base64 string from JSON body
-                String base64Data = jsonBody.get("base64");
-                actualFileName = jsonBody.getOrDefault("fileName", "photo.png");
-                fileBytes = java.util.Base64.getDecoder().decode(base64Data);
-            } else {
+            if (file == null || file.isEmpty()) {
                 res.put("success", false);
-                res.put("message", "File is required - send JSON with 'base64' and optional 'fileName'");
+                res.put("message", "File is required - send as multipart FormData with 'file' parameter");
                 return res;
             }
+
+            byte[] fileBytes = file.getBytes();
+            String actualFileName = file.getOriginalFilename();
 
             return profileService.uploadProfilePhoto(email, fileBytes, actualFileName);
 
         } catch (IOException ex) {
             res.put("success", false);
             res.put("message", "File read error");
-            res.put("error", ex.getMessage());
-            return res;
-        } catch (IllegalArgumentException ex) {
-            res.put("success", false);
-            res.put("message", "Invalid base64 encoding");
             res.put("error", ex.getMessage());
             return res;
         }

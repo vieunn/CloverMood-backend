@@ -265,6 +265,66 @@ public class ProfileService {
         }
     }
 
+    // GET /profile/photo?email=user@email.com
+    public Map<String, Object> getProfilePhoto(String email) {
+        Map<String, Object> res = new HashMap<>();
+
+        if (email == null || email.isEmpty()) {
+            res.put("success", false);
+            res.put("message", "Email is required");
+            return res;
+        }
+
+        try {
+            String url = supabaseUrl + "/rest/v1/profiles?email=eq." + email + "&select=profile_image";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("apikey", supabaseKey);
+            headers.set("Authorization", "Bearer " + supabaseKey);
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+
+            String body = response.getBody();
+            
+            if (body == null || body.equals("[]")) {
+                res.put("success", false);
+                res.put("message", "Profile not found");
+                res.put("hasPhoto", false);
+                return res;
+            }
+
+            // Extract profile_image from JSON array response
+            String base64Image = extractJsonField(body, "profile_image");
+            
+            if (base64Image == null || base64Image.isEmpty() || base64Image.equals("null")) {
+                res.put("success", true);
+                res.put("message", "No photo uploaded");
+                res.put("hasPhoto", false);
+                res.put("image", null);
+                return res;
+            }
+
+            res.put("success", true);
+            res.put("message", "Photo retrieved successfully");
+            res.put("hasPhoto", true);
+            res.put("image", base64Image); // Base64 encoded image
+            return res;
+
+        } catch (HttpStatusCodeException ex) {
+            res.put("success", false);
+            res.put("message", "Database error");
+            res.put("status", ex.getStatusCode().value());
+            return res;
+
+        } catch (Exception ex) {
+            res.put("success", false);
+            res.put("message", "Server error");
+            res.put("error", ex.getMessage());
+            return res;
+        }
+    }
+
     // Helper: Check if profile exists
     private boolean isProfileExists(String email) {
         try {
