@@ -44,6 +44,7 @@ public class ProfileService {
 
         try {
             String url = supabaseUrl + "/rest/v1/profiles?email=eq." + email + "&select=email,full_name,gender,profile_image";
+            System.out.println("DEBUG: Fetching profile from URL: " + url);
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("apikey", supabaseKey);
@@ -53,9 +54,11 @@ public class ProfileService {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
 
             String body = response.getBody();
+            System.out.println("DEBUG: Response body: " + body);
             
             // Parse JSON array response - if empty, user not found
             if (body == null || body.equals("[]")) {
+                System.out.println("DEBUG: Empty profile result for email: " + email);
                 res.put("success", false);
                 res.put("message", "Profile not found");
                 return res;
@@ -70,12 +73,19 @@ public class ProfileService {
             return res;
 
         } catch (HttpStatusCodeException ex) {
+            System.err.println("ERROR: HTTP error fetching profile for " + email);
+            System.err.println("Status: " + ex.getStatusCode().value());
+            System.err.println("Response: " + ex.getResponseBodyAsString());
             res.put("success", false);
             res.put("message", "Database error");
             res.put("status", ex.getStatusCode().value());
+            res.put("error", ex.getResponseBodyAsString());
             return res;
 
         } catch (Exception ex) {
+            System.err.println("ERROR: Exception fetching profile for " + email);
+            System.err.println("Exception: " + ex.getMessage());
+            ex.printStackTrace();
             res.put("success", false);
             res.put("message", "Server error");
             res.put("error", ex.getMessage());
