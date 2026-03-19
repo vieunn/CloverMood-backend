@@ -52,8 +52,8 @@ public class RegisterService {
         try {
             ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
 
-            // Create profile entry for the new user
-            boolean profileCreated = createEmptyProfile(request.getEmail());
+            // Create profile entry for the new user with first and last name
+            boolean profileCreated = createEmptyProfile(request.getEmail(), request.getFirstName(), request.getLastName());
             
             if (!profileCreated) {
                 res.put("success", false);
@@ -82,7 +82,7 @@ public class RegisterService {
         }
     }
 
-    private boolean createEmptyProfile(String email) {
+    private boolean createEmptyProfile(String email, String firstName, String lastName) {
         try {
             String profileUrl = supabaseUrl + "/rest/v1/profiles";
 
@@ -93,14 +93,14 @@ public class RegisterService {
 
             Map<String, Object> profileBody = new HashMap<>();
             profileBody.put("email", email);
-            profileBody.put("full_name", "");
+            profileBody.put("full_name", (firstName != null ? firstName : "") + " " + (lastName != null ? lastName : ""));
             profileBody.put("gender", "");
             profileBody.put("profile_image", null);
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(profileBody, headers);
             ResponseEntity<String> response = restTemplate.postForEntity(profileUrl, entity, String.class);
             
-            System.out.println("Profile created successfully for: " + email);
+            System.out.println("Profile created successfully for: " + email + " with name: " + profileBody.get("full_name"));
             return true;
 
         } catch (HttpStatusCodeException ex) {
