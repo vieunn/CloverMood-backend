@@ -2,12 +2,17 @@ package com.example.api.mood;
 
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class Mood {
 
     private Long id;
+    @JsonProperty("user_id")
     private String userId;  // Store as String to support both numeric and UUID formats
+    @JsonProperty("mood_value")
     private String moodValue; 
     private String note;
+    @JsonProperty("created_at")
     private LocalDateTime createdAt;
 
     // Constructors

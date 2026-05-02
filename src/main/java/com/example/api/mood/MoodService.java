@@ -16,12 +16,15 @@ import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.api.history.ActivityHistoryRequest;
+import com.example.api.history.ActivityHistoryService;
 
 @Service
 public class MoodService {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final ActivityHistoryService activityHistoryService;
 
     @Value("${supabase.url}")
     private String supabaseUrl;
@@ -29,9 +32,10 @@ public class MoodService {
     @Value("${supabase.key}")
     private String supabaseKey;
 
-    public MoodService(RestTemplate restTemplate) {
+    public MoodService(RestTemplate restTemplate, ActivityHistoryService activityHistoryService) {
         this.restTemplate = restTemplate;
         this.objectMapper = new ObjectMapper();
+        this.activityHistoryService = activityHistoryService;
     }
 
     // POST /moods - Save mood
@@ -56,16 +60,38 @@ public class MoodService {
 
             // Parse response to get the created mood
             String responseBody = response.getBody();
+            Mood savedMood = null;
+            
             if (responseBody != null && !responseBody.equals("[]")) {
                 // Parse the array response - Supabase returns an array with the created record
                 List<Map<String, Object>> result = objectMapper.readValue(responseBody, new TypeReference<List<Map<String, Object>>>() {});
                 if (!result.isEmpty()) {
-                    return parseJsonToMood(objectMapper.writeValueAsString(result.get(0)));
+                    savedMood = parseJsonToMood(objectMapper.writeValueAsString(result.get(0)));
                 }
             }
 
             // Fallback: return the mood we sent
-            return new Mood(request.getUserId(), request.getMoodValue(), request.getNote());
+            if (savedMood == null) {
+                savedMood = new Mood(request.getUserId(), request.getMoodValue(), request.getNote());
+            }
+
+            // Log to activity history
+            try {
+                ActivityHistoryRequest historyRequest = new ActivityHistoryRequest(
+                    request.getUserId(),
+                    "mood_recorded",
+                    request.getMoodValue(),
+                    request.getNote(),
+                    "User recorded a mood: " + request.getMoodValue()
+                );
+                activityHistoryService.saveActivityHistory(historyRequest);
+                System.out.println("DEBUG: Activity history logged for mood record");
+            } catch (Exception ex) {
+                System.err.println("WARNING: Failed to log activity history: " + ex.getMessage());
+                // Don't fail the mood save if history logging fails
+            }
+
+            return savedMood;
 
         } catch (HttpStatusCodeException ex) {
             System.err.println("ERROR: HTTP error saving mood");
