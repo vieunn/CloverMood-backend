@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,10 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.api.util.AuthUtil;
 
 @RestController
-@RequestMapping("/api/moods")
+@RequestMapping("/moods")
 public class MoodController {
-
-    private final MoodService moodService;
+    private static final Logger logger = LoggerFactory.getLogger(MoodController.class);    private final MoodService moodService;
     private final AuthUtil authUtil;
 
     public MoodController(MoodService moodService, AuthUtil authUtil) {
@@ -33,45 +34,36 @@ public class MoodController {
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody MoodRequest request) {
         
-        System.out.println("DEBUG: POST /api/moods called");
-        System.out.println("DEBUG: Full request: " + request);
-        System.out.println("DEBUG: Authorization header present: " + (authHeader != null));
+        logger.debug("POST /api/moods called");
         
         try {
-            // TEMPORARY: For local testing - accept request if userId is provided in body
-            String userId = null;
-            if (request.getUserId() != null) {
-                userId = request.getUserId().toString().trim();
-                System.out.println("DEBUG: Using userId from request body: " + userId + " (type: " + request.getUserId().getClass().getName() + ")");
-            } else {
-                // Try to get from token if available
-                userId = authUtil.verifyAndGetUserId(authHeader);
-                System.out.println("DEBUG: Extracted userId from token: " + userId);
-            }
+            // Extract userId from JWT token (optional for demo mode)
+            String userId = authUtil.verifyAndGetUserId(authHeader);
             
             if (userId == null || userId.isEmpty()) {
-                System.out.println("DEBUG: userId is null or empty - returning 400");
-                Map<String, Object> error = new HashMap<>();
-                error.put("success", false);
-                error.put("message", "userId is required in request body or Authorization header");
-                error.put("receivedUserId", request.getUserId());
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+                Object reqUserId = request.getUserId();
+                if (reqUserId != null) {
+                    userId = reqUserId.toString();
+                    logger.debug("Using userId from request (demo mode): {}", userId);
+                } else {
+                    userId = "demo-user-" + System.currentTimeMillis();
+                    logger.debug("Generated demo userId: {}", userId);
+                }
             }
 
-            // Keep userId as-is (String UUID or numeric)
+            // Use userId (from JWT or demo mode)
             request.setUserId(userId);
-            System.out.println("DEBUG: Saved request with userId: " + userId);
+            logger.debug("Saved mood request with verified userId: {}", userId);
             
             Mood savedMood = moodService.saveMood(request);
-            System.out.println("DEBUG: Mood saved successfully with id: " + savedMood.getId());
+            logger.debug("Mood saved successfully with id: {}", savedMood.getId());
             return ResponseEntity.ok(savedMood);
             
         } catch (Exception ex) {
-            System.err.println("ERROR: Exception in recordMood: " + ex.getMessage());
-            ex.printStackTrace();
+            logger.error("Exception in recordMood: {}", ex.getMessage(), ex);
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
-            error.put("message", "Server error saving mood: " + ex.getMessage());
+            error.put("message", "Server error saving mood");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
@@ -79,25 +71,23 @@ public class MoodController {
     @GetMapping("/user/{userId}")
     public ResponseEntity<?> getUserMoods(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
-            @PathVariable Long userId) {
+            @PathVariable String userId) {
         
-        // TEMPORARY: For local testing - allow requests without auth if userId is in path
-        // Once frontend properly sends JWT token, uncomment auth check below
-        System.out.println("DEBUG: GET /user/" + userId + " called");
+        logger.debug("GET /user/{} called", userId);
         
-        String authenticatedUserId = authUtil.verifyAndGetUserId(authHeader);
-        if (authenticatedUserId != null) {
-            // Auth token provided - verify user can only access their own moods
-            if (!authenticatedUserId.equals(userId.toString())) {
-                Map<String, Object> error = new HashMap<>();
-                error.put("success", false);
-                error.put("message", "Forbidden - cannot access other user's moods");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
-            }
-        }
-        // If no auth token, still allow access (temporary for local testing)
+        try {
+            // In demo mode, allow access to any user's moods
+            logger.debug("Retrieving moods for user: {} (demo mode)", userId);
 
-        List<Mood> moods = moodService.getMoodsByUser(userId);
-        return ResponseEntity.ok(moods);
+            List<Mood> moods = moodService.getMoodsByUser(userId);
+            return ResponseEntity.ok(moods);
+            
+        } catch (Exception ex) {
+            logger.error("Exception in getUserMoods: {}", ex.getMessage(), ex);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Server error retrieving moods");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 }

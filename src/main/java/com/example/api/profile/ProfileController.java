@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping("/api/profile")
+@RequestMapping("/profile")
 public class ProfileController {
 
     private final ProfileService profileService;

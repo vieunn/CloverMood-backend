@@ -1,12 +1,15 @@
 package com.example.api.register;
 
-import org.springframework.web.bind.annotation.*;
-import org.springframework.http.ResponseEntity;
-
 import java.util.Map;
 
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth")
 public class RegisterController {
 
     private final RegisterService registerService;

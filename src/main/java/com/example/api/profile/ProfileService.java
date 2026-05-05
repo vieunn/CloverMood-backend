@@ -4,6 +4,8 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +19,8 @@ import org.springframework.web.client.RestTemplate;
 
 @Service
 public class ProfileService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ProfileService.class);
 
     private final RestTemplate restTemplate;
     private final BCryptPasswordEncoder passwordEncoder;
@@ -83,9 +87,7 @@ public class ProfileService {
             return res;
 
         } catch (Exception ex) {
-            System.err.println("ERROR: Exception fetching profile for " + email);
-            System.err.println("Exception: " + ex.getMessage());
-            ex.printStackTrace();
+            logger.error("Exception fetching profile for {}: {}", email, ex.getMessage(), ex);
             res.put("success", false);
             res.put("message", "Server error");
             res.put("error", ex.getMessage());
@@ -307,7 +309,7 @@ public class ProfileService {
             // Extract profile_image from JSON array response
             String base64Image = extractJsonField(body, "profile_image");
             
-            if (base64Image == null || base64Image.isEmpty() || base64Image.equals("null")) {
+            if (base64Image == null || base64Image.isEmpty()) {
                 res.put("success", true);
                 res.put("message", "No photo uploaded");
                 res.put("hasPhoto", false);
@@ -421,7 +423,7 @@ public class ProfileService {
         String gender = extractJsonField(jsonBody, "gender");
         String profileImage = extractJsonField(jsonBody, "profile_image");
         
-        boolean hasPhoto = profileImage != null && !profileImage.isEmpty() && !profileImage.equals("null");
+        boolean hasPhoto = profileImage != null && !profileImage.isEmpty();
         
         return new ProfileResponse(email, fullName, gender, hasPhoto);
     }
@@ -432,13 +434,33 @@ public class ProfileService {
         
         if (startIndex == -1) return null;
         
-        startIndex = json.indexOf("\"", startIndex + key.length());
-        if (startIndex == -1) return null;
+        int valueStart = startIndex + key.length();
+        // Skip whitespace
+        while (valueStart < json.length() && Character.isWhitespace(json.charAt(valueStart))) {
+            valueStart++;
+        }
         
-        int endIndex = json.indexOf("\"", startIndex + 1);
-        if (endIndex == -1) return null;
+        if (valueStart >= json.length()) return null;
         
-        return json.substring(startIndex + 1, endIndex);
+        char firstChar = json.charAt(valueStart);
+        
+        // Handle null value
+        if (json.startsWith("null", valueStart)) {
+            return null;
+        }
+        
+        // Handle string value (quoted)
+        if (firstChar == '"') {
+            int endIndex = valueStart + 1;
+            while (endIndex < json.length()) {
+                if (json.charAt(endIndex) == '"' && json.charAt(endIndex - 1) != '\\') {
+                    return json.substring(valueStart + 1, endIndex);
+                }
+                endIndex++;
+            }
+        }
+        
+        return null;
     }
 
     private boolean isValidImageFile(String fileName) {

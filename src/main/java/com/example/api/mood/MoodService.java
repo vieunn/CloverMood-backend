@@ -1,10 +1,13 @@
 package com.example.api.mood;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -21,6 +24,8 @@ import com.example.api.history.ActivityHistoryService;
 
 @Service
 public class MoodService {
+
+    private static final Logger logger = LoggerFactory.getLogger(MoodService.class);
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -54,6 +59,9 @@ public class MoodService {
             body.put("user_id", request.getUserId());
             body.put("mood_value", request.getMoodValue());
             body.put("note", request.getNote());
+            if (request.getCreatedAt() != null) {
+                body.put("created_at", request.getCreatedAt().toString());
+            }
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
@@ -72,7 +80,7 @@ public class MoodService {
 
             // Fallback: return the mood we sent
             if (savedMood == null) {
-                savedMood = new Mood(request.getUserId(), request.getMoodValue(), request.getNote());
+                savedMood = new Mood(request.getUserId(), request.getMoodValue(), request.getNote(), request.getCreatedAt());
             }
 
             // Log to activity history
@@ -87,7 +95,7 @@ public class MoodService {
                 activityHistoryService.saveActivityHistory(historyRequest);
                 System.out.println("DEBUG: Activity history logged for mood record");
             } catch (Exception ex) {
-                System.err.println("WARNING: Failed to log activity history: " + ex.getMessage());
+                logger.warn("Failed to log activity history: {}", ex.getMessage());
                 // Don't fail the mood save if history logging fails
             }
 
@@ -107,7 +115,7 @@ public class MoodService {
     }
 
     // GET /moods?user_id=<userId> - Get moods by user
-    public List<Mood> getMoodsByUser(Long userId) {
+    public List<Mood> getMoodsByUser(String userId) {
         try {
             String url = supabaseUrl + "/rest/v1/moods?user_id=eq." + userId + "&order=created_at.desc";
             
@@ -158,10 +166,13 @@ public class MoodService {
             
             mood.setMoodValue((String) map.get("mood_value"));
             mood.setNote((String) map.get("note"));
+            Object createdAtObj = map.get("created_at");
+            if (createdAtObj != null) {
+                mood.setCreatedAt(Instant.parse(createdAtObj.toString()));
+            }
             return mood;
         } catch (Exception ex) {
-            System.err.println("ERROR: Failed to parse mood JSON: " + ex.getMessage());
-            ex.printStackTrace();
+            logger.error("Failed to parse mood JSON: {}", ex.getMessage(), ex);
             return new Mood();
         }
     }

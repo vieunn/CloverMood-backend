@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,10 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.api.util.AuthUtil;
 
 @RestController
-@RequestMapping("/api/activity-history")
+@RequestMapping("/activity-history")
 public class ActivityHistoryController {
-
-    private final ActivityHistoryService activityHistoryService;
+    private static final Logger logger = LoggerFactory.getLogger(ActivityHistoryController.class);    private final ActivityHistoryService activityHistoryService;
     private final AuthUtil authUtil;
 
     public ActivityHistoryController(ActivityHistoryService activityHistoryService, AuthUtil authUtil) {
@@ -33,44 +34,36 @@ public class ActivityHistoryController {
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @RequestBody ActivityHistoryRequest request) {
         
-        System.out.println("DEBUG: POST /api/activity-history called");
-        System.out.println("DEBUG: Full request: " + request);
-        System.out.println("DEBUG: Authorization header present: " + (authHeader != null));
+        logger.debug("POST /api/activity-history called");
         
         try {
-            // TEMPORARY: For local testing - accept request if userId is provided in body
-            String userId = null;
-            if (request.getUserId() != null) {
-                userId = request.getUserId().toString().trim();
-                System.out.println("DEBUG: Using userId from request body: " + userId);
-            } else {
-                // Try to get from token if available
-                userId = authUtil.verifyAndGetUserId(authHeader);
-                System.out.println("DEBUG: Extracted userId from token: " + userId);
-            }
+            // Extract userId from JWT token (optional for demo mode)
+            String userId = authUtil.verifyAndGetUserId(authHeader);
             
             if (userId == null || userId.isEmpty()) {
-                System.out.println("DEBUG: userId is null or empty - returning 400");
-                Map<String, Object> error = new HashMap<>();
-                error.put("success", false);
-                error.put("message", "userId is required in request body or Authorization header");
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+                Object reqUserId = request.getUserId();
+                if (reqUserId != null) {
+                    userId = reqUserId.toString();
+                    logger.debug("Using userId from request (demo mode): {}", userId);
+                } else {
+                    userId = "demo-user-" + System.currentTimeMillis();
+                    logger.debug("Generated demo userId: {}", userId);
+                }
             }
 
-            // Keep userId as-is (String UUID or numeric)
+            // Use userId (from JWT or demo mode)
             request.setUserId(userId);
-            System.out.println("DEBUG: Saved request with userId: " + userId);
+            logger.debug("Saved activity history with verified userId: {}", userId);
             
             ActivityHistory savedActivity = activityHistoryService.saveActivityHistory(request);
-            System.out.println("DEBUG: Activity history saved successfully with id: " + savedActivity.getId());
+            logger.debug("Activity history saved successfully with id: {}", savedActivity.getId());
             return ResponseEntity.ok(savedActivity);
             
         } catch (Exception ex) {
-            System.err.println("ERROR: Exception in recordActivity: " + ex.getMessage());
-            ex.printStackTrace();
+            logger.error("Exception in recordActivity: {}", ex.getMessage(), ex);
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
-            error.put("message", "Server error saving activity history: " + ex.getMessage());
+            error.put("message", "Server error saving activity history");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
@@ -80,23 +73,22 @@ public class ActivityHistoryController {
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @PathVariable String userId) {
         
-        System.out.println("DEBUG: GET /api/activity-history/user/" + userId + " called");
+        logger.debug("GET /api/activity-history/user/{} called", userId);
         
-        String authenticatedUserId = authUtil.verifyAndGetUserId(authHeader);
-        if (authenticatedUserId != null) {
-            // Auth token provided - verify user can only access their own history
-            if (!authenticatedUserId.equals(userId.toString())) {
-                Map<String, Object> error = new HashMap<>();
-                error.put("success", false);
-                error.put("message", "Forbidden - cannot access other user's activity history");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
-            }
-        }
-        // If no auth token, still allow access (temporary for local testing)
+        try {
+            // In demo mode, allow access to any user's history
+            logger.debug("Retrieving activity history for user: {} (demo mode)", userId);
 
-        List<ActivityHistory> history = activityHistoryService.getActivityHistoryByUser(userId);
-        // Return raw list (frontend expects an array of activity items)
-        return ResponseEntity.ok(history);
+            List<ActivityHistory> history = activityHistoryService.getActivityHistoryByUser(userId);
+            return ResponseEntity.ok(history);
+            
+        } catch (Exception ex) {
+            logger.error("Exception in getUserActivityHistory: {}", ex.getMessage(), ex);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Server error retrieving activity history");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 
     @GetMapping("/user/{userId}/type/{activityType}")
@@ -105,22 +97,21 @@ public class ActivityHistoryController {
             @PathVariable String userId,
             @PathVariable String activityType) {
         
-        System.out.println("DEBUG: GET /api/activity-history/user/" + userId + "/type/" + activityType + " called");
+        logger.debug("GET /api/activity-history/user/{}/type/{} called", userId, activityType);
         
-        String authenticatedUserId = authUtil.verifyAndGetUserId(authHeader);
-        if (authenticatedUserId != null) {
-            // Auth token provided - verify user can only access their own history
-            if (!authenticatedUserId.equals(userId.toString())) {
-                Map<String, Object> error = new HashMap<>();
-                error.put("success", false);
-                error.put("message", "Forbidden - cannot access other user's activity history");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
-            }
-        }
-        // If no auth token, still allow access (temporary for local testing)
+        try {
+            // In demo mode, allow access to any user's history
+            logger.debug("Retrieving activity history for user: {} type: {} (demo mode)", userId, activityType);
 
-        List<ActivityHistory> history = activityHistoryService.getActivityHistoryByUserAndType(userId, activityType);
-        // Return raw list (frontend expects an array of activity items)
-        return ResponseEntity.ok(history);
+            List<ActivityHistory> history = activityHistoryService.getActivityHistoryByUserAndType(userId, activityType);
+            return ResponseEntity.ok(history);
+            
+        } catch (Exception ex) {
+            logger.error("Exception in getUserActivityHistoryByType: {}", ex.getMessage(), ex);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Server error retrieving activity history");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 }

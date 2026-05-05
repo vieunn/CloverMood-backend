@@ -1,78 +1,76 @@
 package com.example.api.util;
 
-import java.util.Base64;
-import java.util.Map;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 
 @Component
 public class AuthUtil {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final Logger logger = LoggerFactory.getLogger(AuthUtil.class);
+
+    @Value("${supabase.key}")
+    private String supabaseKey;
+
+    @Value("${supabase.jwt.secret:}")
+    private String jwtSecret;
 
     /**
-     * Extract user ID from Supabase JWT token
+     * Verify and extract user ID from Supabase JWT token with signature verification
      * The token structure is: Bearer {token}
      */
     public String extractUserIdFromToken(String authHeader) {
-        System.out.println("DEBUG: authHeader = " + authHeader);
-        
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            System.out.println("DEBUG: Missing or invalid Authorization header");
+            logger.debug("Missing or invalid Authorization header");
             return null;
         }
 
         try {
             String token = authHeader.substring(7); // Remove "Bearer " prefix
-            System.out.println("DEBUG: Token (first 20 chars): " + token.substring(0, Math.min(20, token.length())));
             
-            // JWT format: header.payload.signature
-            String[] parts = token.split("\\.");
-            System.out.println("DEBUG: JWT parts count: " + parts.length);
-            if (parts.length != 3) {
-                System.out.println("DEBUG: Invalid JWT structure");
-                return null;
-            }
-
-            // Decode the payload (second part)
-            String payload = parts[1];
-            // Add padding if needed
-            int padding = 4 - (payload.length() % 4);
-            if (padding != 4) {
-                payload += "=".repeat(padding);
-            }
-
-            byte[] decodedBytes = Base64.getUrlDecoder().decode(payload);
-            String decodedPayload = new String(decodedBytes);
-            System.out.println("DEBUG: Decoded payload: " + decodedPayload);
+            // Use JJWT to verify signature and extract claims
+            // If jwtSecret is provided, use it; otherwise, fall back to supabaseKey
+            String secretToUse = (jwtSecret != null && !jwtSecret.isEmpty()) ? jwtSecret : supabaseKey;
             
-            // Parse JSON to get 'sub' claim (user ID)
-            @SuppressWarnings("unchecked")
-            Map<String, Object> claims = objectMapper.readValue(decodedPayload, Map.class);
-            Object sub = claims.get("sub");
-            System.out.println("DEBUG: Extracted sub (user_id): " + sub);
+            Claims claims = Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(secretToUse.getBytes()))
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
             
-            if (sub != null) {
-                return sub.toString();
+            // Extract 'sub' claim (user ID from Supabase)
+            String userId = claims.getSubject();
+            logger.debug("JWT verified successfully. User ID: {}", userId);
+            
+            if (userId != null && !userId.isEmpty()) {
+                return userId;
             }
             
             return null;
 
+        } catch (JwtException ex) {
+            logger.warn("JWT verification failed: {}", ex.getMessage());
+            return null;
         } catch (Exception ex) {
-            System.err.println("ERROR: Failed to extract user from token: " + ex.getMessage());
+            logger.error("Failed to extract user from token: {}", ex.getMessage(), ex);
             return null;
         }
     }
 
     /**
      * Verify token is present and extract user ID
+     * Returns null if token is invalid or missing
      */
     public String verifyAndGetUserId(String authHeader) {
         String userId = extractUserIdFromToken(authHeader);
         if (userId == null) {
-            System.err.println("ERROR: Invalid or missing authorization token");
+            logger.debug("Invalid or missing authorization token");
         }
         return userId;
     }

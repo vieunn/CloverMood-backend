@@ -1,5 +1,8 @@
 package com.example.api.profile;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ChangePasswordRequest {
     private String email;
     private String currentPassword;

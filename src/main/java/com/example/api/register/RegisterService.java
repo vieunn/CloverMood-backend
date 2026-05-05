@@ -3,6 +3,8 @@ package com.example.api.register;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -14,6 +16,8 @@ import org.springframework.web.client.RestTemplate;
 
 @Service
 public class RegisterService {
+
+    private static final Logger logger = LoggerFactory.getLogger(RegisterService.class);
 
     private final RestTemplate restTemplate;
 
@@ -104,15 +108,11 @@ public class RegisterService {
             return true;
 
         } catch (HttpStatusCodeException ex) {
-            System.err.println("ERROR: Failed to create profile for " + email);
-            System.err.println("Status: " + ex.getStatusCode().value());
-            System.err.println("Response: " + ex.getResponseBodyAsString());
+            logger.error("Failed to create profile for {}: {} - {}", email, ex.getStatusCode().value(), ex.getResponseBodyAsString());
             return false;
             
         } catch (Exception ex) {
-            System.err.println("ERROR: Failed to create profile for " + email);
-            System.err.println("Exception: " + ex.getMessage());
-            ex.printStackTrace();
+            logger.error("Failed to create profile for {}: {}", email, ex.getMessage(), ex);
             return false;
         }
     }
