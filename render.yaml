@@ -18,4 +18,4 @@ services:
       - key: SUPABASE_JWT_SECRET
         sync: true
       - key: CORS_ALLOWED_ORIGINS
-        value: https://clovermood-x34a.onrender.com,http://localhost:3000
+        value: https://clovermood-x34a.onrender.com,https://clovermood-backend.onrender.com,http://localhost:3000,http://localhost:5173
