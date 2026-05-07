@@ -3,6 +3,8 @@ package com.example.api.login;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -14,9 +16,13 @@ import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import jakarta.annotation.PostConstruct;
+
 @Service
 public class LoginService {
 
+    private static final Logger logger = LoggerFactory.getLogger(LoginService.class);
+    
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -28,6 +34,12 @@ public class LoginService {
 
     public LoginService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
+    }
+
+    @PostConstruct
+    public void init() {
+        logger.info("LoginService initialized with supabase.url: {}", supabaseUrl);
+        logger.info("LoginService initialized with supabase.key: {}", supabaseKey);
     }
 
     public Map<String, Object> login(LoginRequest request) {
