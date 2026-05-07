@@ -12,10 +12,10 @@ services:
       - key: JAVA_OPTS
         value: -Xms256m -Xmx512m
       - key: SUPABASE_URL
-        sync: false
+        sync: true
       - key: SUPABASE_KEY
-        sync: false
+        sync: true
       - key: SUPABASE_JWT_SECRET
-        sync: false
+        sync: true
       - key: CORS_ALLOWED_ORIGINS
-        sync: false
+        sync: true
