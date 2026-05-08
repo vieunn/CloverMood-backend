@@ -68,6 +68,36 @@ public class ActivityHistoryController {
         }
     }
 
+    @GetMapping
+    public ResponseEntity<?> getMyActivityHistory(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        
+        logger.debug("GET /api/activity-history called");
+        
+        try {
+            String userId = authUtil.verifyAndGetUserId(authHeader);
+            
+            if (userId == null || userId.isEmpty()) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("message", "Unauthorized");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+            }
+            
+            logger.debug("Retrieving activity history for logged-in user: {}", userId);
+
+            List<ActivityHistory> history = activityHistoryService.getActivityHistoryByUser(userId);
+            return ResponseEntity.ok(history);
+            
+        } catch (Exception ex) {
+            logger.error("Exception in getMyActivityHistory: {}", ex.getMessage(), ex);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Server error retrieving activity history");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
     @GetMapping("/user/{userId}")
     public ResponseEntity<?> getUserActivityHistory(
             @RequestHeader(value = "Authorization", required = false) String authHeader,
@@ -76,8 +106,12 @@ public class ActivityHistoryController {
         logger.debug("GET /api/activity-history/user/{} called", userId);
         
         try {
-            // In demo mode, allow access to any user's history
-            logger.debug("Retrieving activity history for user: {} (demo mode)", userId);
+            // Extract userId from JWT token if available, otherwise use path parameter
+            String verifiedUserId = authUtil.verifyAndGetUserId(authHeader);
+            if (verifiedUserId != null && !verifiedUserId.isEmpty()) {
+                userId = verifiedUserId;
+            }
+            logger.debug("Retrieving activity history for user: {}", userId);
 
             List<ActivityHistory> history = activityHistoryService.getActivityHistoryByUser(userId);
             return ResponseEntity.ok(history);
