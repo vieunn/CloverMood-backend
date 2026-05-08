@@ -42,9 +42,12 @@ public class AuthUtil {
                 return null;
             }
             
+            // Log the secret for debugging (first 20 chars + length)
+            logger.debug("Using JWT secret (length: {}): {}...", jwtSecret.length(), jwtSecret.substring(0, Math.min(20, jwtSecret.length())));
+            
             // Decode base64-encoded JWT secret from Supabase
             byte[] decodedSecret = Base64.getDecoder().decode(jwtSecret);
-            logger.debug("JWT secret decoded, length: {} bytes", decodedSecret.length);
+            logger.debug("JWT secret decoded to {} bytes", decodedSecret.length);
             
             // Verify JWT with HS256
             Claims claims = Jwts.parser()
@@ -63,10 +66,15 @@ public class AuthUtil {
             
             return null;
 
+        } catch (IllegalArgumentException ex) {
+            logger.error("Failed to decode JWT secret - invalid base64 format: {}", ex.getMessage());
+            logger.error("JWT secret value (first 50 chars): {}", jwtSecret.substring(0, Math.min(50, jwtSecret.length())));
+            return null;
         } catch (JwtException ex) {
             logger.warn("JWT verification failed: {}", ex.getMessage());
+            logger.warn("Exception type: {}", ex.getClass().getSimpleName());
             
-            // Log token details for debugging (first 50 chars of token)
+            // Log token details for debugging
             try {
                 String token = authHeader.substring(7);
                 String[] parts = token.split("\\.");
@@ -80,7 +88,7 @@ public class AuthUtil {
             
             return null;
         } catch (Exception ex) {
-            logger.error("Failed to extract user from token: {}", ex.getMessage(), ex);
+            logger.error("Failed to extract user from token: {} - {}", ex.getClass().getSimpleName(), ex.getMessage(), ex);
             return null;
         }
     }

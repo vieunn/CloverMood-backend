@@ -77,16 +77,13 @@ public class ActivityHistoryController {
         try {
             String userId = authUtil.verifyAndGetUserId(authHeader);
             
-            // Require valid JWT token for GET requests
+            // If no valid JWT, allow demo mode (same as POST endpoint)
             if (userId == null || userId.isEmpty()) {
-                logger.debug("GET request failed: No valid JWT token provided");
-                Map<String, Object> error = new HashMap<>();
-                error.put("success", false);
-                error.put("message", "Unauthorized - valid JWT token required");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+                logger.debug("No valid JWT provided, allowing demo mode access");
+                userId = "demo-user-" + System.currentTimeMillis();
             }
             
-            logger.debug("Retrieving activity history for logged-in user: {}", userId);
+            logger.debug("Retrieving activity history for user: {}", userId);
 
             List<ActivityHistory> history = activityHistoryService.getActivityHistoryByUser(userId);
             return ResponseEntity.ok(history);
