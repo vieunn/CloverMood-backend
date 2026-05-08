@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,11 +75,14 @@ public class ActivityHistoryService {
             System.err.println("ERROR: HTTP error saving activity history");
             System.err.println("Status: " + ex.getStatusCode().value());
             System.err.println("Response: " + ex.getResponseBodyAsString());
+            System.err.println("ERROR DETAILS - Request was trying to insert: userId=" + request.getUserId() + 
+                             ", activityType=" + request.getActivityType() + ", moodValue=" + request.getMoodValue());
             throw new RuntimeException("Failed to save activity history: " + ex.getMessage());
 
         } catch (Exception ex) {
             System.err.println("ERROR: Exception saving activity history");
             System.err.println("Exception: " + ex.getMessage());
+            ex.printStackTrace();
             throw new RuntimeException("Server error saving activity history: " + ex.getMessage());
         }
     }
@@ -86,7 +90,13 @@ public class ActivityHistoryService {
     // GET /activity_history?user_id=<userId> - Get activity history by user
     public List<ActivityHistory> getActivityHistoryByUser(String userId) {
         try {
-            String url = supabaseUrl + "/rest/v1/activity_history?user_id=eq." + userId + "&order=timestamp.desc";
+            String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl + "/rest/v1/activity_history")
+                .queryParam("user_id", "eq." + userId)
+                .queryParam("order", "created_at.desc")
+                .build(true)
+                .toUriString();
+            
+            System.err.println("DEBUG: Querying activity history with URL: " + url);
             
             HttpHeaders headers = new HttpHeaders();
             headers.set("apikey", supabaseKey);
@@ -94,6 +104,8 @@ public class ActivityHistoryService {
 
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            System.err.println("DEBUG: Response status: " + response.getStatusCode());
+            System.err.println("DEBUG: Response body: " + response.getBody());
 
             String body = response.getBody();
             if (body == null || body.equals("[]")) {
@@ -118,8 +130,14 @@ public class ActivityHistoryService {
     // GET /activity_history?user_id=<userId>&activity_type=<type> - Get activity history by type
     public List<ActivityHistory> getActivityHistoryByUserAndType(String userId, String activityType) {
         try {
-            String url = supabaseUrl + "/rest/v1/activity_history?user_id=eq." + userId 
-                         + "&activity_type=eq." + activityType + "&order=timestamp.desc";
+            String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl + "/rest/v1/activity_history")
+                .queryParam("user_id", "eq." + userId)
+                .queryParam("activity_type", "eq." + activityType)
+                .queryParam("order", "created_at.desc")
+                .build(true)
+                .toUriString();
+            
+            System.err.println("DEBUG: Querying activity history by type with URL: " + url);
             
             HttpHeaders headers = new HttpHeaders();
             headers.set("apikey", supabaseKey);
@@ -127,6 +145,8 @@ public class ActivityHistoryService {
 
             HttpEntity<String> entity = new HttpEntity<>(headers);
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            System.err.println("DEBUG: Response status: " + response.getStatusCode());
+            System.err.println("DEBUG: Response body: " + response.getBody());
 
             String body = response.getBody();
             if (body == null || body.equals("[]")) {

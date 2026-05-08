@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -92,10 +93,15 @@ public class MoodService {
                     request.getNote(),
                     "User recorded a mood: " + request.getMoodValue()
                 );
+                logger.info("DEBUG: Attempting to log activity history for userId: {}", request.getUserId());
                 activityHistoryService.saveActivityHistory(historyRequest);
-                System.out.println("DEBUG: Activity history logged for mood record");
+                logger.info("DEBUG: Activity history logged for mood record");
+                System.out.println("DEBUG: Activity history logged for mood record with userId: " + request.getUserId());
             } catch (Exception ex) {
-                logger.warn("Failed to log activity history: {}", ex.getMessage());
+                logger.error("Failed to log activity history: {} | Exception: {}", ex.getMessage(), ex.toString());
+                System.err.println("ERROR: Failed to log activity history");
+                System.err.println("Exception message: " + ex.getMessage());
+                ex.printStackTrace();
                 // Don't fail the mood save if history logging fails
             }
 
@@ -117,7 +123,11 @@ public class MoodService {
     // GET /moods?user_id=<userId> - Get moods by user
     public List<Mood> getMoodsByUser(String userId) {
         try {
-            String url = supabaseUrl + "/rest/v1/moods?user_id=eq." + userId + "&order=created_at.desc";
+            String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl + "/rest/v1/moods")
+                .queryParam("user_id", "eq." + userId)
+                .queryParam("order", "created_at.desc")
+                .build(true)
+                .toUriString();
             
             HttpHeaders headers = new HttpHeaders();
             headers.set("apikey", supabaseKey);
