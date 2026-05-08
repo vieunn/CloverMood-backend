@@ -1,5 +1,7 @@
 package com.example.api.util;
 
+import java.util.Base64;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,8 +40,11 @@ public class AuthUtil {
             // If jwtSecret is provided, use it; otherwise, fall back to supabaseKey
             String secretToUse = (jwtSecret != null && !jwtSecret.isEmpty()) ? jwtSecret : supabaseKey;
             
+            // Decode base64-encoded JWT secret from Supabase
+            byte[] decodedSecret = Base64.getDecoder().decode(secretToUse);
+            
             Claims claims = Jwts.parser()
-                .verifyWith(Keys.hmacShaKeyFor(secretToUse.getBytes()))
+                .verifyWith(Keys.hmacShaKeyFor(decodedSecret))
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
