@@ -35,25 +35,29 @@ public class ActivityHistoryController {
             @RequestBody ActivityHistoryRequest request) {
         
         logger.debug("POST /api/activity-history called");
+        logger.debug("Authorization header present: {}", authHeader != null);
         
         try {
             // Extract userId from JWT token (optional for demo mode)
             String userId = authUtil.verifyAndGetUserId(authHeader);
+            logger.debug("After JWT verification, userId: {}", userId);
             
             if (userId == null || userId.isEmpty()) {
                 Object reqUserId = request.getUserId();
                 if (reqUserId != null) {
                     userId = reqUserId.toString();
-                    logger.debug("Using userId from request (demo mode): {}", userId);
+                    logger.debug("Using userId from request body (demo mode): {}", userId);
                 } else {
                     userId = "demo-user-" + System.currentTimeMillis();
                     logger.debug("Generated demo userId: {}", userId);
                 }
+            } else {
+                logger.debug("Using authenticated userId from JWT: {}", userId);
             }
 
             // Use userId (from JWT or demo mode)
             request.setUserId(userId);
-            logger.debug("Saved activity history with verified userId: {}", userId);
+            logger.debug("Saved activity history with userId: {}", userId);
             
             ActivityHistory savedActivity = activityHistoryService.saveActivityHistory(request);
             logger.debug("Activity history saved successfully with id: {}", savedActivity.getId());
@@ -73,19 +77,26 @@ public class ActivityHistoryController {
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         
         logger.debug("GET /api/activity-history called");
+        logger.debug("Authorization header present: {}", authHeader != null);
         
         try {
             String userId = authUtil.verifyAndGetUserId(authHeader);
+            logger.debug("After JWT verification, userId: {}", userId);
             
             // If no valid JWT, allow demo mode (same as POST endpoint)
             if (userId == null || userId.isEmpty()) {
                 logger.debug("No valid JWT provided, allowing demo mode access");
                 userId = "demo-user-" + System.currentTimeMillis();
+                logger.debug("Generated demo userId: {}", userId);
+            } else {
+                logger.debug("Using authenticated userId from JWT: {}", userId);
             }
             
             logger.debug("Retrieving activity history for user: {}", userId);
 
             List<ActivityHistory> history = activityHistoryService.getActivityHistoryByUser(userId);
+            logger.debug("Found {} activities for user: {}", history.size(), userId);
+            
             return ResponseEntity.ok(history);
             
         } catch (Exception ex) {
