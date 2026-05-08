@@ -48,8 +48,8 @@ public class ActivityHistoryController {
                     userId = reqUserId.toString();
                     logger.debug("Using userId from request body (demo mode): {}", userId);
                 } else {
-                    userId = "demo-user-" + System.currentTimeMillis();
-                    logger.debug("Generated demo userId: {}", userId);
+                    userId = "demo-user";
+                    logger.debug("Using default demo userId: {}", userId);
                 }
             } else {
                 logger.debug("Using authenticated userId from JWT: {}", userId);
@@ -86,8 +86,8 @@ public class ActivityHistoryController {
             // If no valid JWT, allow demo mode (same as POST endpoint)
             if (userId == null || userId.isEmpty()) {
                 logger.debug("No valid JWT provided, allowing demo mode access");
-                userId = "demo-user-" + System.currentTimeMillis();
-                logger.debug("Generated demo userId: {}", userId);
+                userId = "demo-user";
+                logger.debug("Using default demo userId: {}", userId);
             } else {
                 logger.debug("Using authenticated userId from JWT: {}", userId);
             }

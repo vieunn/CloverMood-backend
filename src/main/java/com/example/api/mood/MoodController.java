@@ -46,8 +46,8 @@ public class MoodController {
                     userId = reqUserId.toString();
                     logger.debug("Using userId from request (demo mode): {}", userId);
                 } else {
-                    userId = "demo-user-" + System.currentTimeMillis();
-                    logger.debug("Generated demo userId: {}", userId);
+                    userId = "demo-user";
+                    logger.debug("Using default demo userId: {}", userId);
                 }
             }
 
