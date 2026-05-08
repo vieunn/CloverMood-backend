@@ -36,7 +36,7 @@ public class AuthUtil {
         try {
             String token = authHeader.substring(7); // Remove "Bearer " prefix
             
-            // JWT secret MUST be configured - do NOT fall back to publishable key
+            // JWT secret MUST be configured
             if (jwtSecret == null || jwtSecret.isEmpty()) {
                 logger.warn("JWT secret is not configured - cannot verify tokens. Set SUPABASE_JWT_SECRET environment variable.");
                 return null;
@@ -44,7 +44,9 @@ public class AuthUtil {
             
             // Decode base64-encoded JWT secret from Supabase
             byte[] decodedSecret = Base64.getDecoder().decode(jwtSecret);
+            logger.debug("JWT secret decoded, length: {} bytes", decodedSecret.length);
             
+            // Verify JWT with HS256
             Claims claims = Jwts.parser()
                 .verifyWith(Keys.hmacShaKeyFor(decodedSecret))
                 .build()
@@ -63,6 +65,19 @@ public class AuthUtil {
 
         } catch (JwtException ex) {
             logger.warn("JWT verification failed: {}", ex.getMessage());
+            
+            // Log token details for debugging (first 50 chars of token)
+            try {
+                String token = authHeader.substring(7);
+                String[] parts = token.split("\\.");
+                if (parts.length >= 2) {
+                    String decodedHeader = new String(Base64.getDecoder().decode(parts[0]));
+                    logger.warn("Token header: {}", decodedHeader);
+                }
+            } catch (Exception e) {
+                logger.debug("Could not decode token header: {}", e.getMessage());
+            }
+            
             return null;
         } catch (Exception ex) {
             logger.error("Failed to extract user from token: {}", ex.getMessage(), ex);
