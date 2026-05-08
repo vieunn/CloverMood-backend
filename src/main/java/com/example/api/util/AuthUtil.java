@@ -36,12 +36,14 @@ public class AuthUtil {
         try {
             String token = authHeader.substring(7); // Remove "Bearer " prefix
             
-            // Use JJWT to verify signature and extract claims
-            // If jwtSecret is provided, use it; otherwise, fall back to supabaseKey
-            String secretToUse = (jwtSecret != null && !jwtSecret.isEmpty()) ? jwtSecret : supabaseKey;
+            // JWT secret MUST be configured - do NOT fall back to publishable key
+            if (jwtSecret == null || jwtSecret.isEmpty()) {
+                logger.warn("JWT secret is not configured - cannot verify tokens. Set SUPABASE_JWT_SECRET environment variable.");
+                return null;
+            }
             
             // Decode base64-encoded JWT secret from Supabase
-            byte[] decodedSecret = Base64.getDecoder().decode(secretToUse);
+            byte[] decodedSecret = Base64.getDecoder().decode(jwtSecret);
             
             Claims claims = Jwts.parser()
                 .verifyWith(Keys.hmacShaKeyFor(decodedSecret))

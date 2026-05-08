@@ -77,10 +77,12 @@ public class ActivityHistoryController {
         try {
             String userId = authUtil.verifyAndGetUserId(authHeader);
             
+            // Require valid JWT token for GET requests
             if (userId == null || userId.isEmpty()) {
+                logger.debug("GET request failed: No valid JWT token provided");
                 Map<String, Object> error = new HashMap<>();
                 error.put("success", false);
-                error.put("message", "Unauthorized");
+                error.put("message", "Unauthorized - valid JWT token required");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
             }
             
