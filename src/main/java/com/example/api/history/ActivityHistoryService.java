@@ -92,7 +92,7 @@ public class ActivityHistoryService {
         try {
             String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl + "/rest/v1/activity_history")
                 .queryParam("user_id", "eq." + userId)
-                .queryParam("order", "created_at.desc")
+                .queryParam("order", "timestamp.desc")
                 .build(true)
                 .toUriString();
             
@@ -133,7 +133,7 @@ public class ActivityHistoryService {
             String url = UriComponentsBuilder.fromHttpUrl(supabaseUrl + "/rest/v1/activity_history")
                 .queryParam("user_id", "eq." + userId)
                 .queryParam("activity_type", "eq." + activityType)
-                .queryParam("order", "created_at.desc")
+                .queryParam("order", "timestamp.desc")
                 .build(true)
                 .toUriString();
             
